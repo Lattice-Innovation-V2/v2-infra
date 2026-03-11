@@ -69,6 +69,11 @@ on:
         required: false
         type: string
         default: ""
+      cloudsql_instance:
+        description: "Cloud SQL instance connection name (project:region:instance)"
+        required: false
+        type: string
+        default: ""
 
 # GCP configuration — single project, fully isolated from latticeorg.
 # latticeorg uses: latticepay-dev, latticepay-prod (different projects, different orgs)
@@ -150,6 +155,10 @@ jobs:
 
           if [ -n "${{ inputs.secrets }}" ]; then
             DEPLOY_ARGS+=("--set-secrets=${{ inputs.secrets }}")
+          fi
+
+          if [ -n "${{ inputs.cloudsql_instance }}" ]; then
+            DEPLOY_ARGS+=("--add-cloudsql-instances=${{ inputs.cloudsql_instance }}")
           fi
 
           gcloud run deploy "${DEPLOY_ARGS[@]}"
