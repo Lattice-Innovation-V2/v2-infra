@@ -88,6 +88,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: read
 
     steps:
       - name: Checkout code
@@ -114,6 +115,8 @@ jobs:
           file: ${{ inputs.dockerfile_path }}
           push: true
           tags: ${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve image tag
         id: image
