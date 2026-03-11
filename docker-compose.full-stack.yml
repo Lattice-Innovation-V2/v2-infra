@@ -1,0 +1,338 @@
+# =============================================================================
+# Lattice Pay V2 — Full-Stack Local Development
+# =============================================================================
+# Usage:  docker compose -f docker-compose.full-stack.yml up --build
+#
+# Spins up all V2 services in containers — mirrors Cloud Run deployment.
+# Port range 102xx avoids conflicts with V1 and bare-metal dev servers.
+#
+#   Infrastructure:   10220 (Postgres), 10221 (Redis)
+#   Backends:         10200–10207
+#   Frontends:        10210–10213
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # Infrastructure
+  # ===========================================================================
+
+  postgres:
+    image: postgres:18
+    container_name: v2-postgres
+    ports:
+      - "10220:5432"
+    environment:
+      POSTGRES_DB: lattice_v2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - v2_pg_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lattice_v2"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - v2-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: v2-redis
+    ports:
+      - "10221:6379"
+    volumes:
+      - v2_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - v2-network
+
+  # ===========================================================================
+  # Backend Services (Quarkus / Java 21)
+  # ===========================================================================
+
+  integrator-service:
+    build:
+      context: ../v2-integrator-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-integrator-service
+    ports:
+      - "10200:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  merchant-service:
+    build:
+      context: ../v2-merchant-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-merchant-service
+    ports:
+      - "10201:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  payment-config-service:
+    build:
+      context: ../v2-payment-config-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-payment-config-service
+    ports:
+      - "10202:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  payment-runtime-service:
+    build:
+      context: ../v2-payment-runtime-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-payment-runtime-service
+    ports:
+      - "10203:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  reporting-api:
+    build:
+      context: ../v2-reporting-api
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-reporting-api
+    ports:
+      - "10204:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_HTTP_PORT: 8080
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  brand-registry:
+    build:
+      context: ../v2-brand-registry
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-brand-registry
+    ports:
+      - "10205:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  payment-mcp:
+    build:
+      context: ../v2-payment-mcp
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-payment-mcp
+    ports:
+      - "10206:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  agentic-api:
+    build:
+      context: ../v2-agentic-api
+      dockerfile: src/main/docker/Dockerfile.jvm
+      args:
+        QUARKUS_PROFILE: dev
+    container_name: v2-agentic-api
+    ports:
+      - "10207:8080"
+    environment:
+      QUARKUS_PROFILE: dev
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/lattice_v2
+      QUARKUS_DATASOURCE_USERNAME: postgres
+      QUARKUS_DATASOURCE_PASSWORD: postgres
+      QUARKUS_HTTP_PORT: 8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - v2-network
+
+  # ===========================================================================
+  # Frontend Services (Next.js 15)
+  # ===========================================================================
+
+  integrator-portal:
+    build:
+      context: ../v2-integrator-portal
+      dockerfile: Dockerfile
+    container_name: v2-integrator-portal
+    ports:
+      - "10210:8080"
+    environment:
+      PORT: 8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+      REPORTING_API_URL: http://reporting-api:8080
+      BRAND_REGISTRY_URL: http://brand-registry:8080
+      MERCHANT_CONSOLE_URL: http://localhost:10211
+    depends_on:
+      - integrator-service
+      - merchant-service
+      - payment-config-service
+    networks:
+      - v2-network
+
+  merchant-console:
+    build:
+      context: ../v2-merchant-console
+      dockerfile: Dockerfile
+    container_name: v2-merchant-console
+    ports:
+      - "10211:8080"
+    environment:
+      PORT: 8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+      CSP_FRAME_ANCESTORS: http://localhost:10210
+    depends_on:
+      - merchant-service
+      - payment-config-service
+    networks:
+      - v2-network
+
+  admin-console:
+    build:
+      context: ../v2-admin-console
+      dockerfile: Dockerfile
+    container_name: v2-admin-console
+    ports:
+      - "10212:8080"
+    environment:
+      PORT: 8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      PAYMENT_CONFIG_URL: http://payment-config-service:8080
+      BRAND_REGISTRY_URL: http://brand-registry:8080
+    depends_on:
+      - integrator-service
+      - merchant-service
+      - brand-registry
+    networks:
+      - v2-network
+
+  demo:
+    build:
+      context: ../v2-demo
+      dockerfile: Dockerfile
+    container_name: v2-demo
+    ports:
+      - "10213:8080"
+    environment:
+      PORT: 8080
+      PAYMENT_RUNTIME_URL: http://payment-runtime-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8080
+      INTEGRATOR_SERVICE_URL: http://integrator-service:8080
+    depends_on:
+      - payment-runtime-service
+      - merchant-service
+    networks:
+      - v2-network
+
+# =============================================================================
+# Volumes & Networks
+# =============================================================================
+
+volumes:
+  v2_pg_data:
+    driver: local
+  v2_redis_data:
+    driver: local
+
+networks:
+  v2-network:
+    driver: bridge

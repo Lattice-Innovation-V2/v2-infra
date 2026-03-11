@@ -12,5 +12,5 @@ until docker compose exec redis redis-cli ping 2>/dev/null | grep -q PONG; do
   sleep 1
 done
 echo "Infrastructure ready!"
-echo "  PostgreSQL: localhost:5434 (lattice_v2)"
-echo "  Redis:      localhost:6380"
+echo "  PostgreSQL: localhost:10220 (lattice_v2)"
+echo "  Redis:      localhost:10221"

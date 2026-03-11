@@ -1,0 +1,37 @@
+# Reusable Java CI quality gate for Quarkus/Maven services.
+# Called by per-repo workflows via `uses: .github/workflows/ci-java.yml`.
+#
+# Runs: compile + test (./mvnw verify) with JDK 21 and Maven caching.
+
+name: Java CI
+
+on:
+  workflow_call:
+
+jobs:
+  build-and-test:
+    name: Build & Test (Java 21)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # Run full verify lifecycle: compile, test, integration-test, package verification.
+      # -B = batch mode (non-interactive, cleaner CI logs).
+      - name: Verify (compile + test)
+        run: ./mvnw verify -B

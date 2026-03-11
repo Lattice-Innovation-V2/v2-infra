@@ -1,0 +1,164 @@
+# Reusable workflow: promote an existing image to staging or production.
+#
+# Looks up the image currently running in the source environment and
+# deploys it to the target environment. No rebuild — same bytes.
+#
+# Usage from a per-service workflow:
+#   uses: Lattice-Innovation-V2/v2-infra/.github/workflows/promote.yml@main
+#   with:
+#     service_name: integrator-service
+#     from_environment: dev
+#     to_environment: stg
+
+name: Promote to Environment
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Service name (e.g. integrator-service)"
+        required: true
+        type: string
+      from_environment:
+        description: "Source environment (dev or stg)"
+        required: true
+        type: string
+      to_environment:
+        description: "Target environment (stg or prod)"
+        required: true
+        type: string
+      memory:
+        description: "Memory allocation"
+        required: false
+        type: string
+        default: "512Mi"
+      cpu:
+        description: "CPU allocation"
+        required: false
+        type: string
+        default: "1"
+      max_instances:
+        description: "Maximum instances"
+        required: false
+        type: number
+        default: 5
+      port:
+        description: "Container port"
+        required: false
+        type: number
+        default: 8080
+      env_vars:
+        description: "Environment variables"
+        required: false
+        type: string
+        default: ""
+      secrets:
+        description: "Secrets"
+        required: false
+        type: string
+        default: ""
+
+env:
+  GCP_PROJECT_ID: lattice-innovation-v2
+  GCP_REGION: us-central1
+  WIF_PROVIDER: projects/497764988925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  SERVICE_ACCOUNT: github-actions-sa@lattice-innovation-v2.iam.gserviceaccount.com
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.service_name }} (${{ inputs.from_environment }} → ${{ inputs.to_environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.to_environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Get image from source environment
+        id: source
+        run: |
+          SOURCE_SERVICE="${{ inputs.from_environment }}-${{ inputs.service_name }}"
+
+          IMAGE=$(gcloud run services describe "$SOURCE_SERVICE" \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(spec.template.spec.containers[0].image)" 2>&1)
+
+          if [ -z "$IMAGE" ] || echo "$IMAGE" | grep -q "ERROR"; then
+            echo "ERROR: Could not find image for ${SOURCE_SERVICE}"
+            echo "Output: $IMAGE"
+            exit 1
+          fi
+
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          echo "Promoting image: $IMAGE"
+          echo "From: ${SOURCE_SERVICE} → To: ${{ inputs.to_environment }}-${{ inputs.service_name }}"
+
+      - name: Deploy to target environment
+        run: |
+          DEPLOY_ARGS=(
+            "${{ inputs.to_environment }}-${{ inputs.service_name }}"
+            "--image=${{ steps.source.outputs.image }}"
+            "--region=${{ env.GCP_REGION }}"
+            "--project=${{ env.GCP_PROJECT_ID }}"
+            "--platform=managed"
+            "--allow-unauthenticated"
+            "--port=${{ inputs.port }}"
+            "--memory=${{ inputs.memory }}"
+            "--cpu=${{ inputs.cpu }}"
+            "--max-instances=${{ inputs.max_instances }}"
+          )
+
+          if [ -n "${{ inputs.env_vars }}" ]; then
+            DEPLOY_ARGS+=("--set-env-vars=${{ inputs.env_vars }}")
+          fi
+
+          if [ -n "${{ inputs.secrets }}" ]; then
+            DEPLOY_ARGS+=("--set-secrets=${{ inputs.secrets }}")
+          fi
+
+          gcloud run deploy "${DEPLOY_ARGS[@]}"
+
+      - name: Wait for Ready
+        run: |
+          SERVICE="${{ inputs.to_environment }}-${{ inputs.service_name }}"
+          TIMEOUT=120
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(gcloud run services describe "$SERVICE" \
+              --region=${{ env.GCP_REGION }} \
+              --project=${{ env.GCP_PROJECT_ID }} \
+              --format="value(status.conditions[0].status)" 2>/dev/null || echo "UNKNOWN")
+
+            if [ "$STATUS" = "True" ]; then
+              URL=$(gcloud run services describe "$SERVICE" \
+                --region=${{ env.GCP_REGION }} \
+                --project=${{ env.GCP_PROJECT_ID }} \
+                --format="value(status.url)")
+              echo "Ready: $URL"
+              exit 0
+            fi
+
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+          echo "ERROR: ${SERVICE} did not become Ready within ${TIMEOUT}s"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Promote: ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| From | ${{ inputs.from_environment }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| To | ${{ inputs.to_environment }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ steps.source.outputs.image }}\` |" >> $GITHUB_STEP_SUMMARY

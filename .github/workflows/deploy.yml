@@ -1,0 +1,193 @@
+# Reusable workflow: build a container image and deploy to Cloud Run.
+#
+# Supports three environments: dev, stg, prod — all in the same GCP project
+# (lattice-innovation-v2), fully isolated from latticeorg projects.
+#
+# Flow:
+#   push to main  → deploy-dev.yml  → build image + deploy to dev-{service}
+#   manual trigger → deploy-stg.yml  → promote dev image to stg-{service}
+#   tag v*.*.*    → deploy-prod.yml → promote image to prod-{service}
+#
+# "Build once, deploy many" — staging and prod reuse the same image built for dev.
+
+name: Deploy to Cloud Run
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Cloud Run service name (e.g. integrator-service)"
+        required: true
+        type: string
+      environment:
+        description: "Target environment: dev, stg, or prod"
+        required: false
+        type: string
+        default: "dev"
+      dockerfile_path:
+        description: "Path to the Dockerfile (for build mode)"
+        required: false
+        type: string
+        default: "./src/main/docker/Dockerfile.jvm"
+      build_context:
+        description: "Docker build context directory (for build mode)"
+        required: false
+        type: string
+        default: "."
+      image_tag:
+        description: "Existing image tag to deploy (skip build). Used for stg/prod promotion."
+        required: false
+        type: string
+        default: ""
+      port:
+        description: "Container port"
+        required: false
+        type: number
+        default: 8080
+      memory:
+        description: "Memory allocation (e.g. 512Mi, 1Gi)"
+        required: false
+        type: string
+        default: "512Mi"
+      cpu:
+        description: "CPU allocation"
+        required: false
+        type: string
+        default: "1"
+      max_instances:
+        description: "Maximum Cloud Run instances"
+        required: false
+        type: number
+        default: 5
+      env_vars:
+        description: "Environment variables as KEY=value,KEY2=value2"
+        required: false
+        type: string
+        default: ""
+      secrets:
+        description: "Secrets as ENV_NAME=secret-name:version"
+        required: false
+        type: string
+        default: ""
+
+# GCP configuration — single project, fully isolated from latticeorg.
+# latticeorg uses: latticepay-dev, latticepay-prod (different projects, different orgs)
+# V2 uses: lattice-innovation-v2 only — no cross-project access possible.
+env:
+  GCP_PROJECT_ID: lattice-innovation-v2
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev/lattice-innovation-v2/v2-images
+  WIF_PROVIDER: projects/497764988925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  SERVICE_ACCOUNT: github-actions-sa@lattice-innovation-v2.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}-${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      # Build step — only runs when no pre-built image_tag is provided (i.e., dev deploys).
+      # Staging and prod skip this step and reuse the existing image.
+      - name: Build and push image
+        id: build
+        if: inputs.image_tag == ''
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build_context }}
+          file: ${{ inputs.dockerfile_path }}
+          push: true
+          tags: ${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}
+
+      - name: Resolve image tag
+        id: image
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+            echo "Using existing image: ${{ inputs.image_tag }}"
+          else
+            echo "tag=${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "Using freshly built image: ${{ github.sha }}"
+          fi
+
+      - name: Deploy to Cloud Run
+        run: |
+          DEPLOY_ARGS=(
+            "${{ inputs.environment }}-${{ inputs.service_name }}"
+            "--image=${{ steps.image.outputs.tag }}"
+            "--region=${{ env.GCP_REGION }}"
+            "--project=${{ env.GCP_PROJECT_ID }}"
+            "--platform=managed"
+            "--allow-unauthenticated"
+            "--port=${{ inputs.port }}"
+            "--memory=${{ inputs.memory }}"
+            "--cpu=${{ inputs.cpu }}"
+            "--max-instances=${{ inputs.max_instances }}"
+          )
+
+          if [ -n "${{ inputs.env_vars }}" ]; then
+            DEPLOY_ARGS+=("--set-env-vars=${{ inputs.env_vars }}")
+          fi
+
+          if [ -n "${{ inputs.secrets }}" ]; then
+            DEPLOY_ARGS+=("--set-secrets=${{ inputs.secrets }}")
+          fi
+
+          gcloud run deploy "${DEPLOY_ARGS[@]}"
+
+      - name: Wait for Ready
+        run: |
+          SERVICE="${{ inputs.environment }}-${{ inputs.service_name }}"
+          TIMEOUT=120
+          ELAPSED=0
+
+          echo "Waiting for ${SERVICE} to become Ready..."
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(gcloud run services describe "$SERVICE" \
+              --region=${{ env.GCP_REGION }} \
+              --project=${{ env.GCP_PROJECT_ID }} \
+              --format="value(status.conditions[0].status)" 2>/dev/null || echo "UNKNOWN")
+
+            if [ "$STATUS" = "True" ]; then
+              URL=$(gcloud run services describe "$SERVICE" \
+                --region=${{ env.GCP_REGION }} \
+                --project=${{ env.GCP_PROJECT_ID }} \
+                --format="value(status.url)")
+              echo "Ready: $URL"
+              exit 0
+            fi
+
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            echo "  status=$STATUS (${ELAPSED}s / ${TIMEOUT}s)"
+          done
+
+          echo "ERROR: ${SERVICE} did not become Ready within ${TIMEOUT}s"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Deploy: ${{ inputs.environment }}-${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ steps.image.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Memory | ${{ inputs.memory }} |" >> $GITHUB_STEP_SUMMARY

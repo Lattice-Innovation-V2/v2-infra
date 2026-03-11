@@ -3,7 +3,7 @@ services:
     image: postgres:18
     container_name: v2-postgres
     ports:
-      - "5434:5432"
+      - "10220:5432"
     environment:
       POSTGRES_DB: lattice_v2
       POSTGRES_USER: postgres
@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     container_name: v2-redis
     ports:
-      - "6380:6379"
+      - "10221:6379"
     volumes:
       - v2_redis_data:/data
     healthcheck:

@@ -1,0 +1,38 @@
+# Reusable Next.js CI quality gate for frontend apps.
+# Called by per-repo workflows via `uses: .github/workflows/ci-nextjs.yml`.
+#
+# Runs: type-check, lint, and tests with Node 22.
+
+name: Next.js CI
+
+on:
+  workflow_call:
+
+jobs:
+  quality-gate:
+    name: Type Check, Lint & Test (Node 22)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # TypeScript compilation check (no emit).
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      # --passWithNoTests allows repos that haven't added tests yet to pass CI.
+      - name: Run tests
+        run: npm test -- --passWithNoTests
