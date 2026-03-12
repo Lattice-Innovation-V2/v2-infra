@@ -14,6 +14,8 @@ const region = gcpConfig.require("region");
 const appsConfig = new pulumi.Config("apps");
 const networkingStackName = appsConfig.require("networkingStack");
 const dataStackName = appsConfig.require("dataStack");
+// Service name prefix for Cloud Run URLs (e.g. "linno-v2" → linno-v2-integrator-portal)
+const servicePrefix = appsConfig.get("servicePrefix") ?? stack;
 
 // Reference networking stack outputs
 const networkingStack = new pulumi.StackReference(networkingStackName);
@@ -47,6 +49,11 @@ for (const svc of MICROSERVICES) {
     envVars.push({ name: "QUARKUS_PROFILE", value: "prod" });
   }
 
+  if (svc.runtime === "nextjs") {
+    // Bypass IAP in V2 sandbox (no GLB/IAP configured yet)
+    envVars.push({ name: "BYPASS_IAP", value: "true" });
+  }
+
   // Database-specific env vars and secrets
   let sqlConnectionName: pulumi.Input<string> | undefined;
   const secretEnvVars: CloudRunSecretEnvVar[] = [];
@@ -64,6 +71,7 @@ for (const svc of MICROSERVICES) {
     projectId: projectId,
     region: region,
     serviceName: svc.name,
+    serviceNamePrefix: servicePrefix,
     vpcName: vpcName,
     subnetName: subnetName,
     containerPort: svc.containerPort,
@@ -105,6 +113,16 @@ for (const svc of MICROSERVICES) {
       {
         project: projectId,
         role: "roles/cloudsql.instanceUser",
+        member: pulumi.interpolate`serviceAccount:${cloudRun.serviceAccountEmail}`,
+      },
+    );
+
+    // Grant Secret Manager access for DB credentials
+    new gcp.projects.IAMMember(
+      `${stack}-${svc.name}-secret-accessor`,
+      {
+        project: projectId,
+        role: "roles/secretmanager.secretAccessor",
         member: pulumi.interpolate`serviceAccount:${cloudRun.serviceAccountEmail}`,
       },
     );

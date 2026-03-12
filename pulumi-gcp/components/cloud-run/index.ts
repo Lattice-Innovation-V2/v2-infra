@@ -17,6 +17,8 @@ export interface CloudRunArgs {
   projectId: string;
   region: string;
   serviceName: string;
+  /** Prefix for Cloud Run service name and SA. Defaults to environment. */
+  serviceNamePrefix?: string;
   vpcName: pulumi.Input<string>;
   subnetName: pulumi.Input<string>;
   containerPort: number;
@@ -48,6 +50,7 @@ export class CloudRun extends pulumi.ComponentResource {
       projectId,
       region,
       serviceName,
+      serviceNamePrefix: rawPrefix,
       vpcName,
       subnetName,
       containerPort,
@@ -62,15 +65,19 @@ export class CloudRun extends pulumi.ComponentResource {
       livenessProbePath,
     } = args;
 
-    const prefix = `${environment}-${serviceName}`;
+    const svcPrefix = rawPrefix ?? environment;
+    const prefix = `${svcPrefix}-${serviceName}`;
+
+    // SA accountId must be ≤30 chars. Use shortened prefix if needed.
+    const saAccountId = `${svcPrefix}-${serviceName}`.slice(0, 30);
 
     // Per-service service account
     const serviceAccount = new gcp.serviceaccount.Account(
       `${prefix}-sa`,
       {
         project: projectId,
-        accountId: `${environment}-${serviceName}-sa`,
-        displayName: `${environment} ${serviceName} Cloud Run SA`,
+        accountId: saAccountId,
+        displayName: `${svcPrefix} ${serviceName} Cloud Run SA`,
       },
       { parent: this },
     );
@@ -124,8 +131,9 @@ export class CloudRun extends pulumi.ComponentResource {
       `${prefix}-run`,
       {
         project: projectId,
-        name: `${environment}-${serviceName}`,
+        name: `${svcPrefix}-${serviceName}`,
         location: region,
+        deletionProtection: false,
         ingress: "INGRESS_TRAFFIC_ALL",
         template: {
           serviceAccount: serviceAccount.email,

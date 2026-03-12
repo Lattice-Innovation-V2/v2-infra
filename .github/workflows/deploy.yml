@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: "dev"
+      service_prefix:
+        description: "Prefix for Cloud Run service name (overrides environment). E.g. 'linno-v2' → linno-v2-{service}"
+        required: false
+        type: string
+        default: ""
       dockerfile_path:
         description: "Path to the Dockerfile (for build mode)"
         required: false
@@ -87,7 +92,7 @@ env:
 
 jobs:
   deploy:
-    name: Deploy ${{ inputs.environment }}-${{ inputs.service_name }}
+    name: Deploy ${{ inputs.service_prefix || inputs.environment }}-${{ inputs.service_name }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
@@ -139,7 +144,8 @@ jobs:
       # CI only updates: image, env vars, and secrets.
       - name: Update Cloud Run service image
         run: |
-          SERVICE="${{ inputs.environment }}-${{ inputs.service_name }}"
+          PREFIX="${{ inputs.service_prefix || inputs.environment }}"
+          SERVICE="${PREFIX}-${{ inputs.service_name }}"
           UPDATE_ARGS=(
             "$SERVICE"
             "--image=${{ steps.image.outputs.tag }}"
@@ -159,7 +165,8 @@ jobs:
 
       - name: Wait for Ready
         run: |
-          SERVICE="${{ inputs.environment }}-${{ inputs.service_name }}"
+          PREFIX="${{ inputs.service_prefix || inputs.environment }}"
+          SERVICE="${PREFIX}-${{ inputs.service_name }}"
           TIMEOUT=120
           ELAPSED=0
 
@@ -191,7 +198,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## Deploy: ${{ inputs.environment }}-${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Deploy: ${{ inputs.service_prefix || inputs.environment }}-${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Image | \`${{ steps.image.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
