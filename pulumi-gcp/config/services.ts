@@ -47,7 +47,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/payment-config-service",
-    healthPath: "/v1/payment-config-service/q/health",
+    healthPath: "/v1/payment-config-service/health",
   },
   {
     name: "payment-runtime-service",
@@ -59,7 +59,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/payment-runtime-service",
-    healthPath: "/v1/payment-runtime-service/q/health",
+    healthPath: "/v1/payment-runtime-service/health",
   },
   {
     name: "reporting-api",
@@ -71,7 +71,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: true,
     isPublic: true,
     pathPrefix: "/v1/reporting",
-    healthPath: "/v1/reporting/q/health",
+    healthPath: "/v1/reporting/health",
   },
   {
     name: "brand-registry",
