@@ -134,34 +134,28 @@ jobs:
             echo "Using freshly built image: ${{ github.sha }}"
           fi
 
-      - name: Deploy to Cloud Run
+      # Update the Pulumi-managed Cloud Run service with the new image.
+      # Pulumi owns the service config (VPC, scaling, SA, probes).
+      # CI only updates: image, env vars, and secrets.
+      - name: Update Cloud Run service image
         run: |
-          DEPLOY_ARGS=(
-            "${{ inputs.environment }}-${{ inputs.service_name }}"
+          SERVICE="${{ inputs.environment }}-${{ inputs.service_name }}"
+          UPDATE_ARGS=(
+            "$SERVICE"
             "--image=${{ steps.image.outputs.tag }}"
             "--region=${{ env.GCP_REGION }}"
             "--project=${{ env.GCP_PROJECT_ID }}"
-            "--platform=managed"
-            "--allow-unauthenticated"
-            "--port=${{ inputs.port }}"
-            "--memory=${{ inputs.memory }}"
-            "--cpu=${{ inputs.cpu }}"
-            "--max-instances=${{ inputs.max_instances }}"
           )
 
           if [ -n "${{ inputs.env_vars }}" ]; then
-            DEPLOY_ARGS+=("--set-env-vars=${{ inputs.env_vars }}")
+            UPDATE_ARGS+=("--update-env-vars=${{ inputs.env_vars }}")
           fi
 
           if [ -n "${{ inputs.secrets }}" ]; then
-            DEPLOY_ARGS+=("--set-secrets=${{ inputs.secrets }}")
+            UPDATE_ARGS+=("--update-secrets=${{ inputs.secrets }}")
           fi
 
-          if [ -n "${{ inputs.cloudsql_instance }}" ]; then
-            DEPLOY_ARGS+=("--add-cloudsql-instances=${{ inputs.cloudsql_instance }}")
-          fi
-
-          gcloud run deploy "${DEPLOY_ARGS[@]}"
+          gcloud run services update "${UPDATE_ARGS[@]}"
 
       - name: Wait for Ready
         run: |

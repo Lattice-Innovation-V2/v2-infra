@@ -1,0 +1,7 @@
+name: v2-data
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    parent: ../../
+description: V2 Data - Cloud SQL, databases, IAM users

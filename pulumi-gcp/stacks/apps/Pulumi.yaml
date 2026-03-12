@@ -1,0 +1,7 @@
+name: v2-apps
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    parent: ../../
+description: V2 Apps - Cloud Run services for all microservices

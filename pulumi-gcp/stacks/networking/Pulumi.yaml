@@ -1,0 +1,7 @@
+name: v2-networking
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    parent: ../../
+description: V2 Networking - VPC, subnets, firewall

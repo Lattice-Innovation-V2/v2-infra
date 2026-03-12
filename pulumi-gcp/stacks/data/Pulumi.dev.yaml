@@ -1,0 +1,5 @@
+config:
+  gcp:project: lattice-innovation-v2
+  gcp:region: us-central1
+  data:networkingStack: organization/v2-networking/dev
+encryptionsalt: v1:7PevybQT/Po=:v1:MwVWSFnrcX315e59:K7U1bQF9vAkh34X5tz+jGTpWYJQ3Yw==
