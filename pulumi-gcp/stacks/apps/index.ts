@@ -52,6 +52,25 @@ for (const svc of MICROSERVICES) {
   if (svc.runtime === "nextjs") {
     // Bypass IAP in V2 sandbox (no GLB/IAP configured yet)
     envVars.push({ name: "BYPASS_IAP", value: "true" });
+
+    // Backend URL env vars — map dependency service names to env var names
+    const backendEnvVarMap: Record<string, string> = {
+      "integrator-service": "INTEGRATOR_API_URL",
+      "merchant-service": "MERCHANT_API_URL",
+      "payment-config-service": "PAYMENT_CONFIG_API_URL",
+      "payment-runtime-service": "PAYMENT_RUNTIME_API_URL",
+      "reporting-api": "REPORTING_API_URL",
+      "brand-registry": "BRAND_REGISTRY_API_URL",
+    };
+
+    if (svc.backendDependencies) {
+      for (const dep of svc.backendDependencies) {
+        const envName = backendEnvVarMap[dep];
+        if (envName && serviceUrls[dep]) {
+          envVars.push({ name: envName, value: serviceUrls[dep] });
+        }
+      }
+    }
   }
 
   // Database-specific env vars and secrets

@@ -97,6 +97,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
       "integrator-service",
       "merchant-service",
       "payment-config-service",
+      "payment-runtime-service",
       "reporting-api",
     ],
   },
@@ -109,9 +110,11 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     isPublic: true,
     healthPath: "/api/health",
     backendDependencies: [
-      "payment-runtime-service",
-      "payment-config-service",
       "integrator-service",
+      "merchant-service",
+      "payment-config-service",
+      "payment-runtime-service",
+      "reporting-api",
     ],
   },
   {
