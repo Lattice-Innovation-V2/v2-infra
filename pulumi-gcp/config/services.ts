@@ -23,7 +23,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/integrator-service",
-    healthPath: "/q/health",
+    healthPath: "/v1/integrator-service/q/health",
   },
   {
     name: "merchant-service",
@@ -35,7 +35,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/merchant-service",
-    healthPath: "/q/health",
+    healthPath: "/v1/merchant-service/q/health",
   },
   {
     name: "payment-config-service",
@@ -47,7 +47,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/payment-config-service",
-    healthPath: "/q/health",
+    healthPath: "/v1/payment-config-service/q/health",
   },
   {
     name: "payment-runtime-service",
@@ -59,7 +59,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/payment-runtime-service",
-    healthPath: "/q/health",
+    healthPath: "/v1/payment-runtime-service/q/health",
   },
   {
     name: "reporting-api",
@@ -71,7 +71,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: true,
     isPublic: true,
     pathPrefix: "/v1/reporting",
-    healthPath: "/q/health",
+    healthPath: "/v1/reporting/q/health",
   },
   {
     name: "brand-registry",
@@ -83,7 +83,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasRedis: false,
     isPublic: true,
     pathPrefix: "/v1/brand-registry",
-    healthPath: "/q/health",
+    healthPath: "/v1/brand-registry/q/health",
   },
   {
     name: "integrator-portal",
@@ -92,6 +92,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasDatabase: false,
     hasRedis: false,
     isPublic: true,
+    healthPath: "/api/health",
     backendDependencies: [
       "integrator-service",
       "merchant-service",
@@ -106,6 +107,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasDatabase: false,
     hasRedis: false,
     isPublic: true,
+    healthPath: "/api/health",
     backendDependencies: [
       "payment-runtime-service",
       "payment-config-service",
@@ -119,6 +121,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasDatabase: false,
     hasRedis: false,
     isPublic: true,
+    healthPath: "/api/health",
     backendDependencies: [
       "integrator-service",
       "merchant-service",
@@ -135,6 +138,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     hasDatabase: false,
     hasRedis: false,
     isPublic: true,
+    healthPath: "/api/health",
     backendDependencies: ["payment-runtime-service"],
   },
 ];

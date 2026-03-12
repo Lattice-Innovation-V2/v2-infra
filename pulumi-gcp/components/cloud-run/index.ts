@@ -27,7 +27,8 @@ export interface CloudRunArgs {
   maxInstances: number;
   memory?: string;
   cpu?: string;
-  healthPath?: string;
+  startupProbePath?: string;
+  livenessProbePath?: string;
 }
 
 export class CloudRun extends pulumi.ComponentResource {
@@ -57,7 +58,8 @@ export class CloudRun extends pulumi.ComponentResource {
       maxInstances,
       memory = "512Mi",
       cpu = "1",
-      healthPath,
+      startupProbePath,
+      livenessProbePath,
     } = args;
 
     const prefix = `${environment}-${serviceName}`;
@@ -151,25 +153,29 @@ export class CloudRun extends pulumi.ComponentResource {
                   cpu: cpu,
                 },
               },
-              startupProbe: {
-                httpGet: {
-                  path: healthPath ? `${healthPath}/started` : "/",
-                  port: containerPort,
-                },
-                initialDelaySeconds: healthPath ? 5 : 3,
-                periodSeconds: 5,
-                failureThreshold: healthPath ? 30 : 10,
-                timeoutSeconds: 3,
-              },
-              livenessProbe: {
-                httpGet: {
-                  path: healthPath ? `${healthPath}/live` : "/",
-                  port: containerPort,
-                },
-                periodSeconds: 30,
-                failureThreshold: 3,
-                timeoutSeconds: 3,
-              },
+              startupProbe: startupProbePath
+                ? {
+                    httpGet: {
+                      path: startupProbePath,
+                      port: containerPort,
+                    },
+                    initialDelaySeconds: 5,
+                    periodSeconds: 5,
+                    failureThreshold: 30,
+                    timeoutSeconds: 3,
+                  }
+                : undefined,
+              livenessProbe: livenessProbePath
+                ? {
+                    httpGet: {
+                      path: livenessProbePath,
+                      port: containerPort,
+                    },
+                    periodSeconds: 30,
+                    failureThreshold: 3,
+                    timeoutSeconds: 3,
+                  }
+                : undefined,
               volumeMounts:
                 volumeMounts.length > 0 ? volumeMounts : undefined,
             },

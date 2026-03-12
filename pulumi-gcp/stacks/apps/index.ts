@@ -74,7 +74,18 @@ for (const svc of MICROSERVICES) {
     cloudSqlConnectionName: sqlConnectionName,
     minInstances: envConfig.scaling.minInstances,
     maxInstances: envConfig.scaling.maxInstances,
-    healthPath: svc.healthPath,
+    // Quarkus: /path/q/health/started and /path/q/health/live
+    // Next.js: /api/health for both (no sub-paths)
+    startupProbePath: svc.healthPath
+      ? svc.runtime === "quarkus"
+        ? `${svc.healthPath}/started`
+        : svc.healthPath
+      : undefined,
+    livenessProbePath: svc.healthPath
+      ? svc.runtime === "quarkus"
+        ? `${svc.healthPath}/live`
+        : svc.healthPath
+      : undefined,
   });
 
   serviceUrls[svc.name] = cloudRun.serviceUrl;
