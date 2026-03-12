@@ -183,7 +183,11 @@ export class CloudRun extends pulumi.ComponentResource {
           volumes: volumes.length > 0 ? volumes : undefined,
         },
       },
-      { parent: this },
+      {
+        parent: this,
+        // CI deploys update the container image — Pulumi should not revert it.
+        ignoreChanges: ["template.containers[0].image"],
+      },
     );
 
     this.serviceUrl = service.uri;

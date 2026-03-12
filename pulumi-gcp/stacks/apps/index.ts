@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
-import { CloudRun, CloudRunEnvVar } from "../../components/cloud-run";
+import { CloudRun, CloudRunEnvVar, CloudRunSecretEnvVar } from "../../components/cloud-run";
 import { getEnvironmentConfig } from "../../config/environments";
 import { MICROSERVICES } from "../../config/services";
 
@@ -47,19 +47,16 @@ for (const svc of MICROSERVICES) {
     envVars.push({ name: "QUARKUS_PROFILE", value: "prod" });
   }
 
-  // Database-specific env vars
+  // Database-specific env vars and secrets
   let sqlConnectionName: pulumi.Input<string> | undefined;
+  const secretEnvVars: CloudRunSecretEnvVar[] = [];
   if (svc.hasDatabase && svc.database) {
-    const iamUser = pulumi.interpolate`${stack}-${svc.name}-sa@${projectId}.iam`;
-
     envVars.push({ name: "DB_NAME", value: svc.database });
-    envVars.push({ name: "DB_IAM_USER", value: iamUser as unknown as string });
-    envVars.push({
-      name: "CLOUDSQL_CONNECTION_NAME",
-      value: cloudSqlConnectionName as unknown as string,
-    });
 
-    sqlConnectionName = cloudSqlConnectionName;
+    // DB credentials from Secret Manager
+    secretEnvVars.push({ name: "DB_URL", secretName: "DB_URL" });
+    secretEnvVars.push({ name: "DB_USER", secretName: "DB_USER" });
+    secretEnvVars.push({ name: "DB_PASSWORD", secretName: "DB_PASSWORD" });
   }
 
   const cloudRun = new CloudRun(`${stack}-${svc.name}`, {
@@ -71,7 +68,7 @@ for (const svc of MICROSERVICES) {
     subnetName: subnetName,
     containerPort: svc.containerPort,
     envVars: envVars,
-    cloudSqlConnectionName: sqlConnectionName,
+    secrets: secretEnvVars.length > 0 ? secretEnvVars : undefined,
     minInstances: envConfig.scaling.minInstances,
     maxInstances: envConfig.scaling.maxInstances,
     // Quarkus: /path/q/health/started and /path/q/health/live
