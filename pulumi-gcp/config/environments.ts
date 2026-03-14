@@ -36,6 +36,34 @@ export const environments: Record<string, EnvironmentConfig> = {
     network: { subnetCidr: "10.10.0.0/24" },
     scaling: { minInstances: 0, maxInstances: 10 },
   },
+  "preview-a": {
+    projectId: "lattice-innovation-v2",
+    region: "us-central1",
+    cloudSql: {
+      tier: "db-f1-micro",
+      diskSizeGb: 10,
+      availabilityType: "ZONAL",
+      pointInTimeRecovery: false,
+      deletionProtection: false,
+    },
+    redis: { tier: "BASIC", memorySizeGb: 1 },
+    network: { subnetCidr: "10.10.0.0/24" },
+    scaling: { minInstances: 0, maxInstances: 5 },
+  },
+  "preview-b": {
+    projectId: "lattice-innovation-v2",
+    region: "us-central1",
+    cloudSql: {
+      tier: "db-f1-micro",
+      diskSizeGb: 10,
+      availabilityType: "ZONAL",
+      pointInTimeRecovery: false,
+      deletionProtection: false,
+    },
+    redis: { tier: "BASIC", memorySizeGb: 1 },
+    network: { subnetCidr: "10.10.0.0/24" },
+    scaling: { minInstances: 0, maxInstances: 5 },
+  },
 };
 
 export function getEnvironmentConfig(env: string): EnvironmentConfig {

@@ -1,14 +1,14 @@
 # Reusable workflow: build a container image and deploy to Cloud Run.
 #
-# Supports three environments: dev, stg, prod — all in the same GCP project
-# (lattice-innovation-v2), fully isolated from latticeorg projects.
+# Supports multiple environments: dev, preview-a, preview-b — all in the same
+# GCP project (lattice-innovation-v2), fully isolated from latticeorg projects.
 #
 # Flow:
-#   push to main  → deploy-dev.yml  → build image + deploy to dev-{service}
-#   manual trigger → deploy-stg.yml  → promote dev image to stg-{service}
-#   tag v*.*.*    → deploy-prod.yml → promote image to prod-{service}
+#   push to main  → deploy-dev.yml   → build image + deploy to linno-v2-dev-{service}
+#   tag pa-*      → promote-all.yml  → promote dev images to linno-v2-pa-{service}
+#   tag pb-*      → promote-all.yml  → promote dev images to linno-v2-pb-{service}
 #
-# "Build once, deploy many" — staging and prod reuse the same image built for dev.
+# "Build once, deploy many" — preview environments reuse the same image built for dev.
 
 name: Deploy to Cloud Run
 
@@ -20,10 +20,15 @@ on:
         required: true
         type: string
       environment:
-        description: "Target environment: dev, stg, or prod"
+        description: "Target environment: dev, preview-a, or preview-b"
         required: false
         type: string
         default: "dev"
+      deploy_tag:
+        description: "Deploy tag (e.g. pa-2026-03-13, pb-hotfix-1). Empty for dev builds."
+        required: false
+        type: string
+        default: ""
       service_prefix:
         description: "Prefix for Cloud Run service name (overrides environment). E.g. 'linno-v2' → linno-v2-{service}"
         required: false
@@ -139,29 +144,49 @@ jobs:
             echo "Using freshly built image: ${{ github.sha }}"
           fi
 
-      # Update the Pulumi-managed Cloud Run service with the new image.
-      # Pulumi owns the service config (VPC, scaling, SA, probes).
-      # CI only updates: image, env vars, and secrets.
-      - name: Update Cloud Run service image
+      # Deploy (create or update) the Cloud Run service with the new image.
+      # Uses 'gcloud run deploy' which creates the service if it doesn't exist,
+      # or updates it if it does. Pulumi can later adopt and manage the service.
+      - name: Deploy Cloud Run service
         run: |
           PREFIX="${{ inputs.service_prefix || inputs.environment }}"
           SERVICE="${PREFIX}-${{ inputs.service_name }}"
-          UPDATE_ARGS=(
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          DEPLOY_TS="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+          DEPLOY_ARGS=(
             "$SERVICE"
             "--image=${{ steps.image.outputs.tag }}"
             "--region=${{ env.GCP_REGION }}"
             "--project=${{ env.GCP_PROJECT_ID }}"
+            "--port=${{ inputs.port || '8080' }}"
+            "--memory=${{ inputs.memory || '512Mi' }}"
+            "--cpu=${{ inputs.cpu || '1' }}"
+            "--max-instances=${{ inputs.max_instances || '5' }}"
+            "--min-instances=0"
+            "--allow-unauthenticated"
+            "--no-use-http2"
           )
 
+          # Deploy metadata env vars — always set
+          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${{ inputs.deploy_tag || '' }},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.environment }}"
           if [ -n "${{ inputs.env_vars }}" ]; then
-            UPDATE_ARGS+=("--update-env-vars=${{ inputs.env_vars }}")
+            DEPLOY_VARS="${DEPLOY_VARS},${{ inputs.env_vars }}"
           fi
+          DEPLOY_ARGS+=("--update-env-vars=${DEPLOY_VARS}")
 
           if [ -n "${{ inputs.secrets }}" ]; then
-            UPDATE_ARGS+=("--update-secrets=${{ inputs.secrets }}")
+            DEPLOY_ARGS+=("--update-secrets=${{ inputs.secrets }}")
           fi
 
-          gcloud run services update "${UPDATE_ARGS[@]}"
+          if [ -n "${{ inputs.cloudsql_instance }}" ]; then
+            DEPLOY_ARGS+=("--add-cloudsql-instances=${{ inputs.cloudsql_instance }}")
+          fi
+
+          # Deploy metadata labels
+          DEPLOY_ARGS+=("--update-labels=env=${{ inputs.environment }},git-sha=${SHORT_SHA},deploy-tag=${{ inputs.deploy_tag || 'none' }}")
+
+          gcloud run deploy "${DEPLOY_ARGS[@]}"
 
       - name: Wait for Ready
         run: |

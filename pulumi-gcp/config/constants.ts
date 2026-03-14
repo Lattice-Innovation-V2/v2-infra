@@ -16,6 +16,12 @@ export const POSTGRES_FLAGS: Array<{ name: string; value: string }> = [
   { name: "log_min_duration_statement", value: "1000" },
 ];
 
+export const ENV_SERVICE_PREFIX: Record<string, string> = {
+  dev: "linno-v2-dev",
+  "preview-a": "linno-v2-pa",
+  "preview-b": "linno-v2-pb",
+};
+
 export const COMMON_APIS = [
   "compute.googleapis.com",
   "run.googleapis.com",

@@ -3,6 +3,7 @@ import * as gcp from "@pulumi/gcp";
 import { CloudRun, CloudRunEnvVar, CloudRunSecretEnvVar } from "../../components/cloud-run";
 import { getEnvironmentConfig } from "../../config/environments";
 import { MICROSERVICES } from "../../config/services";
+import { createFeatBitServices } from "./featbit";
 
 const stack = pulumi.getStack();
 const envConfig = getEnvironmentConfig(stack);
@@ -85,6 +86,11 @@ for (const svc of MICROSERVICES) {
     secretEnvVars.push({ name: "DB_PASSWORD", secretName: "DB_PASSWORD" });
   }
 
+  // Deploy metadata — placeholders overridden by gcloud at deploy time
+  envVars.push({ name: "DEPLOY_SHA", value: "unknown" });
+  envVars.push({ name: "DEPLOY_TAG", value: "unknown" });
+  envVars.push({ name: "DEPLOY_TIMESTAMP", value: "unknown" });
+
   const cloudRun = new CloudRun(`${stack}-${svc.name}`, {
     environment: stack,
     projectId: projectId,
@@ -98,6 +104,10 @@ for (const svc of MICROSERVICES) {
     secrets: secretEnvVars.length > 0 ? secretEnvVars : undefined,
     minInstances: envConfig.scaling.minInstances,
     maxInstances: envConfig.scaling.maxInstances,
+    labels: {
+      env: stack,
+      "managed-by": "pulumi",
+    },
     // Quarkus: /path/q/health/started and /path/q/health/live
     // Next.js: /api/health for both (no sub-paths)
     startupProbePath: svc.healthPath
@@ -209,8 +219,47 @@ for (const svc of MICROSERVICES) {
   }
 }
 
+// ============================================================================
+// FeatBit (feature flag platform) — optional, gated by config
+// ============================================================================
+
+const featbitEnabled = appsConfig.getBoolean("featbitEnabled") ?? false;
+
+let featbitOutputs:
+  | ReturnType<typeof createFeatBitServices>
+  | undefined;
+
+if (featbitEnabled) {
+  const cloudSqlPrivateIp = dataStack.getOutput(
+    "cloudSqlPrivateIp",
+  ) as pulumi.Output<string>;
+  const connStringSecretId = dataStack.getOutput(
+    "featbitConnStringSecretId",
+  ) as pulumi.Output<string>;
+  const dbPasswordSecretId = dataStack.getOutput(
+    "featbitDbPasswordSecretId",
+  ) as pulumi.Output<string>;
+
+  featbitOutputs = createFeatBitServices({
+    environment: stack,
+    projectId,
+    region,
+    servicePrefix,
+    vpcName,
+    subnetName,
+    cloudSqlPrivateIp,
+    connStringSecretId,
+    dbPasswordSecretId,
+  });
+}
+
 // Stack outputs - all service URLs
 export const services: Record<string, pulumi.Output<string>> = {};
 for (const svc of MICROSERVICES) {
   services[svc.name] = serviceUrls[svc.name];
 }
+
+// FeatBit service URLs (only populated when featbitEnabled is true)
+export const featbitUiUrl = featbitOutputs?.uiUrl;
+export const featbitApiUrl = featbitOutputs?.apiUrl;
+export const featbitEvalUrl = featbitOutputs?.evalUrl;

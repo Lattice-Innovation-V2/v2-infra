@@ -1,0 +1,76 @@
+# Promote ALL services from dev to a preview environment.
+#
+# Triggered by pushing a tag:
+#   pa-*  → promote dev to preview-a  (linno-v2-dev → linno-v2-pa)
+#   pb-*  → promote dev to preview-b  (linno-v2-dev → linno-v2-pb)
+#
+# Example:
+#   git tag pa-2026-03-13-hotfix && git push origin pa-2026-03-13-hotfix
+#
+# All 10 services are promoted in parallel using a matrix strategy.
+
+name: Promote All Services
+
+on:
+  push:
+    tags:
+      - 'pa-*'    # preview-a tags
+      - 'pb-*'    # preview-b tags
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  resolve:
+    name: Resolve target environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      to_prefix: ${{ steps.env.outputs.to_prefix }}
+      deploy_tag: ${{ steps.env.outputs.deploy_tag }}
+    steps:
+      - name: Parse tag prefix
+        id: env
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "deploy_tag=${TAG}" >> $GITHUB_OUTPUT
+
+          if [[ "$TAG" == pa-* ]]; then
+            echo "environment=preview-a" >> $GITHUB_OUTPUT
+            echo "to_prefix=linno-v2-pa" >> $GITHUB_OUTPUT
+            echo "Promoting to preview-a (linno-v2-pa)"
+          elif [[ "$TAG" == pb-* ]]; then
+            echo "environment=preview-b" >> $GITHUB_OUTPUT
+            echo "to_prefix=linno-v2-pb" >> $GITHUB_OUTPUT
+            echo "Promoting to preview-b (linno-v2-pb)"
+          else
+            echo "ERROR: Unrecognized tag prefix: ${TAG}"
+            exit 1
+          fi
+
+  promote:
+    name: Promote ${{ matrix.service }}
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - integrator-service
+          - merchant-service
+          - payment-config-service
+          - payment-runtime-service
+          - reporting-api
+          - brand-registry
+          - integrator-portal
+          - merchant-console
+          - admin-console
+          - demo
+    uses: Lattice-Innovation-V2/v2-infra/.github/workflows/promote.yml@main
+    secrets: inherit
+    with:
+      service_name: ${{ matrix.service }}
+      from_prefix: linno-v2-dev
+      to_prefix: ${{ needs.resolve.outputs.to_prefix }}
+      to_environment: ${{ needs.resolve.outputs.environment }}
+      deploy_tag: ${{ needs.resolve.outputs.deploy_tag }}

@@ -31,6 +31,8 @@ export interface CloudRunArgs {
   cpu?: string;
   startupProbePath?: string;
   livenessProbePath?: string;
+  /** Labels applied to the Cloud Run service. */
+  labels?: Record<string, string>;
 }
 
 export class CloudRun extends pulumi.ComponentResource {
@@ -63,6 +65,7 @@ export class CloudRun extends pulumi.ComponentResource {
       cpu = "1",
       startupProbePath,
       livenessProbePath,
+      labels,
     } = args;
 
     const svcPrefix = rawPrefix ?? environment;
@@ -134,6 +137,7 @@ export class CloudRun extends pulumi.ComponentResource {
         name: `${svcPrefix}-${serviceName}`,
         location: region,
         deletionProtection: false,
+        labels: labels,
         ingress: "INGRESS_TRAFFIC_ALL",
         template: {
           serviceAccount: serviceAccount.email,

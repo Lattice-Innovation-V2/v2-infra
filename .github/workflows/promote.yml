@@ -1,14 +1,19 @@
-# Reusable workflow: promote an existing image to staging or production.
+# Reusable workflow: promote an existing image to another environment.
 #
-# Looks up the image currently running in the source environment and
-# deploys it to the target environment. No rebuild — same bytes.
+# Looks up the image currently running in the source service and
+# deploys it to the target service. No rebuild — same bytes.
 #
-# Usage from a per-service workflow:
+# Uses prefix-based service naming: {prefix}-{service_name}
+#   e.g. linno-v2-dev-integrator-service → linno-v2-pa-integrator-service
+#
+# Usage from a per-service or promote-all workflow:
 #   uses: Lattice-Innovation-V2/v2-infra/.github/workflows/promote.yml@main
 #   with:
 #     service_name: integrator-service
-#     from_environment: dev
-#     to_environment: stg
+#     from_prefix: linno-v2-dev
+#     to_prefix: linno-v2-pa
+#     to_environment: preview-a
+#     deploy_tag: pa-2026-03-13
 
 name: Promote to Environment
 
@@ -19,14 +24,23 @@ on:
         description: "Service name (e.g. integrator-service)"
         required: true
         type: string
-      from_environment:
-        description: "Source environment (dev or stg)"
+      from_prefix:
+        description: "Source service prefix (e.g. linno-v2-dev)"
+        required: true
+        type: string
+      to_prefix:
+        description: "Target service prefix (e.g. linno-v2-pa)"
         required: true
         type: string
       to_environment:
-        description: "Target environment (stg or prod)"
+        description: "Target environment name (e.g. preview-a, preview-b)"
         required: true
         type: string
+      deploy_tag:
+        description: "Deploy tag (e.g. pa-2026-03-13)"
+        required: false
+        type: string
+        default: ""
       memory:
         description: "Memory allocation"
         required: false
@@ -66,7 +80,7 @@ env:
 
 jobs:
   promote:
-    name: Promote ${{ inputs.service_name }} (${{ inputs.from_environment }} → ${{ inputs.to_environment }})
+    name: Promote ${{ inputs.service_name }} (${{ inputs.from_prefix }} → ${{ inputs.to_prefix }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.to_environment }}
     permissions:
@@ -80,10 +94,10 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
 
-      - name: Get image from source environment
+      - name: Get image from source service
         id: source
         run: |
-          SOURCE_SERVICE="${{ inputs.from_environment }}-${{ inputs.service_name }}"
+          SOURCE_SERVICE="${{ inputs.from_prefix }}-${{ inputs.service_name }}"
 
           IMAGE=$(gcloud run services describe "$SOURCE_SERVICE" \
             --region=${{ env.GCP_REGION }} \
@@ -98,12 +112,16 @@ jobs:
 
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
           echo "Promoting image: $IMAGE"
-          echo "From: ${SOURCE_SERVICE} → To: ${{ inputs.to_environment }}-${{ inputs.service_name }}"
+          echo "From: ${SOURCE_SERVICE} → To: ${{ inputs.to_prefix }}-${{ inputs.service_name }}"
 
-      - name: Deploy to target environment
+      - name: Deploy to target service
         run: |
+          TARGET_SERVICE="${{ inputs.to_prefix }}-${{ inputs.service_name }}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          DEPLOY_TS="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
           DEPLOY_ARGS=(
-            "${{ inputs.to_environment }}-${{ inputs.service_name }}"
+            "$TARGET_SERVICE"
             "--image=${{ steps.source.outputs.image }}"
             "--region=${{ env.GCP_REGION }}"
             "--project=${{ env.GCP_PROJECT_ID }}"
@@ -115,19 +133,25 @@ jobs:
             "--max-instances=${{ inputs.max_instances }}"
           )
 
+          # Deploy metadata env vars
+          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${{ inputs.deploy_tag || '' }},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.to_environment }}"
           if [ -n "${{ inputs.env_vars }}" ]; then
-            DEPLOY_ARGS+=("--set-env-vars=${{ inputs.env_vars }}")
+            DEPLOY_VARS="${DEPLOY_VARS},${{ inputs.env_vars }}"
           fi
+          DEPLOY_ARGS+=("--set-env-vars=${DEPLOY_VARS}")
 
           if [ -n "${{ inputs.secrets }}" ]; then
             DEPLOY_ARGS+=("--set-secrets=${{ inputs.secrets }}")
           fi
 
+          # Deploy metadata labels
+          DEPLOY_ARGS+=("--update-labels=env=${{ inputs.to_environment }},git-sha=${SHORT_SHA},deploy-tag=${{ inputs.deploy_tag || 'none' }}")
+
           gcloud run deploy "${DEPLOY_ARGS[@]}"
 
       - name: Wait for Ready
         run: |
-          SERVICE="${{ inputs.to_environment }}-${{ inputs.service_name }}"
+          SERVICE="${{ inputs.to_prefix }}-${{ inputs.service_name }}"
           TIMEOUT=120
           ELAPSED=0
 
@@ -159,6 +183,8 @@ jobs:
           echo "## Promote: ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| From | ${{ inputs.from_environment }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| To | ${{ inputs.to_environment }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| From | ${{ inputs.from_prefix }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| To | ${{ inputs.to_prefix }}-${{ inputs.service_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ inputs.to_environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Tag | ${{ inputs.deploy_tag || 'none' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | \`${{ steps.source.outputs.image }}\` |" >> $GITHUB_STEP_SUMMARY

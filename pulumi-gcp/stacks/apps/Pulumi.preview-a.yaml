@@ -1,0 +1,6 @@
+config:
+  gcp:project: lattice-innovation-v2
+  gcp:region: us-central1
+  apps:networkingStack: organization/v2-networking/dev
+  apps:dataStack: organization/v2-data/dev
+  apps:servicePrefix: linno-v2-pa
