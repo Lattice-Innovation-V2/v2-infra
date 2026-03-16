@@ -169,7 +169,7 @@ jobs:
           )
 
           # Deploy metadata env vars — always set
-          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${{ inputs.deploy_tag || '' }},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.environment }}"
+          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${{ inputs.deploy_tag || 'none' }},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.environment }}"
           if [ -n "${{ inputs.env_vars }}" ]; then
             DEPLOY_VARS="${DEPLOY_VARS},${{ inputs.env_vars }}"
           fi
