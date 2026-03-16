@@ -84,6 +84,16 @@ on:
         required: false
         type: string
         default: ""
+      vpc_network:
+        description: "VPC network for Direct VPC Egress (e.g. v2-dev-vpc)"
+        required: false
+        type: string
+        default: ""
+      vpc_subnet:
+        description: "VPC subnet for Direct VPC Egress (e.g. v2-dev-subnet)"
+        required: false
+        type: string
+        default: ""
 
 # GCP configuration — single project, fully isolated from latticeorg.
 # latticeorg uses: latticepay-dev, latticepay-prod (different projects, different orgs)
@@ -183,6 +193,12 @@ jobs:
 
           if [ -n "${{ inputs.cloudsql_instance }}" ]; then
             DEPLOY_ARGS+=("--add-cloudsql-instances=${{ inputs.cloudsql_instance }}")
+          fi
+
+          if [ -n "${{ inputs.vpc_network }}" ] && [ -n "${{ inputs.vpc_subnet }}" ]; then
+            DEPLOY_ARGS+=("--network=${{ inputs.vpc_network }}")
+            DEPLOY_ARGS+=("--subnet=${{ inputs.vpc_subnet }}")
+            DEPLOY_ARGS+=("--vpc-egress=private-ranges-only")
           fi
 
           # Deploy metadata labels
