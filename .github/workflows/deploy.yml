@@ -169,7 +169,9 @@ jobs:
           )
 
           # Deploy metadata env vars — always set
-          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${{ inputs.deploy_tag || 'none' }},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.environment }}"
+          DEPLOY_TAG="${{ inputs.deploy_tag }}"
+          DEPLOY_TAG="${DEPLOY_TAG:-none}"
+          DEPLOY_VARS="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${DEPLOY_TAG},DEPLOY_TIMESTAMP=${DEPLOY_TS},ENVIRONMENT=${{ inputs.environment }}"
           if [ -n "${{ inputs.env_vars }}" ]; then
             DEPLOY_VARS="${DEPLOY_VARS},${{ inputs.env_vars }}"
           fi
@@ -184,7 +186,7 @@ jobs:
           fi
 
           # Deploy metadata labels
-          DEPLOY_ARGS+=("--update-labels=env=${{ inputs.environment }},git-sha=${SHORT_SHA},deploy-tag=${{ inputs.deploy_tag || 'none' }}")
+          DEPLOY_ARGS+=("--update-labels=env=${{ inputs.environment }},git-sha=${SHORT_SHA},deploy-tag=${DEPLOY_TAG}")
 
           gcloud run deploy "${DEPLOY_ARGS[@]}"
 
