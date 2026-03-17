@@ -48,6 +48,24 @@ for (const svc of MICROSERVICES) {
   if (svc.runtime === "quarkus") {
     envVars.push({ name: "QUARKUS_HTTP_PORT", value: "8080" });
     envVars.push({ name: "QUARKUS_PROFILE", value: "prod" });
+
+    // Backend-to-backend inter-service URLs (Quarkus REST clients)
+    const quarkusServiceUrlMap: Record<string, Record<string, string>> = {
+      "integrator-service": { "merchant-service": "MERCHANT_SERVICE_URL" },
+      "payment-runtime-service": {
+        "payment-config-service": "PAYMENT_CONFIG_URL",
+        "integrator-service": "INTEGRATOR_SERVICE_URL",
+        "merchant-service": "MERCHANT_SERVICE_URL",
+      },
+    };
+    const deps = quarkusServiceUrlMap[svc.name];
+    if (deps) {
+      for (const [dep, envName] of Object.entries(deps)) {
+        if (serviceUrls[dep]) {
+          envVars.push({ name: envName, value: serviceUrls[dep] });
+        }
+      }
+    }
   }
 
   if (svc.runtime === "nextjs") {
