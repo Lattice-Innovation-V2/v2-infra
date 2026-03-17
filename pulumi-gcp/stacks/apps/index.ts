@@ -120,6 +120,7 @@ for (const svc of MICROSERVICES) {
         ? `${svc.healthPath}/live`
         : svc.healthPath
       : undefined,
+    importExisting: false,
   });
 
   serviceUrls[svc.name] = cloudRun.serviceUrl;

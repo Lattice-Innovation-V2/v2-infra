@@ -40,7 +40,12 @@ const cloudSql = new CloudSql("v2-cloudsql", {
   pointInTimeRecovery: envConfig.cloudSql.pointInTimeRecovery,
   deletionProtection: envConfig.cloudSql.deletionProtection,
   databaseFlags: POSTGRES_FLAGS,
+  importExisting: false,
 });
+
+// Set importExisting=true on first run to adopt existing GCP resources.
+const importExisting = false;
+const importId = (id: string) => importExisting ? id : undefined;
 
 // Create the lattice_v2 database
 const database = new gcp.sql.Database(
@@ -52,7 +57,7 @@ const database = new gcp.sql.Database(
     charset: "UTF8",
     collation: "en_US.UTF8",
   },
-  { dependsOn: [cloudSql] },
+  { dependsOn: [cloudSql], import: importId(`projects/${projectId}/instances/v2-${stack}-postgres/databases/lattice_v2`) },
 );
 
 // Create preview environment databases on the same Cloud SQL instance

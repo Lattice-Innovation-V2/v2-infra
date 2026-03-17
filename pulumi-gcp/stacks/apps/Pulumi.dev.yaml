@@ -1,9 +1,7 @@
+encryptionsalt: v1:j7A48rBep4M=:v1:H+CC/ZY5/R6rUTB8:bfJYwQr39nsnoMeP12qUetJpCmABsw==
 config:
   gcp:project: lattice-innovation-v2
   gcp:region: us-central1
   apps:networkingStack: organization/v2-networking/dev
   apps:dataStack: organization/v2-data/dev
-  apps:servicePrefix: linno-v2
-  # FeatBit feature flag platform (uncomment to enable)
-  # apps:featbitEnabled: true
-encryptionsalt: v1:5xx6OYmpF+E=:v1:ZWaNS5+jLH1R75JT:j1YIyiTe3rdsuBm0E1KNT5NpZ/2kng==
+  apps:servicePrefix: linno-v2-dev

@@ -11,12 +11,17 @@ const projectId = gcpConfig.require("project");
 const region = gcpConfig.require("region");
 
 // VPC + Subnet + Cloud Router + NAT + Private Service Connection
+// Set importExisting=true on first run to adopt existing GCP resources.
+// After successful import, set to false (or remove) so normal operations resume.
+const importExisting = false;
+
 const vpc = new Vpc("v2-vpc", {
   environment: stack,
   projectId: projectId,
   region: region,
   subnetCidr: envConfig.network.subnetCidr,
   description: `Lattice V2 ${stack} VPC`,
+  importExisting,
 });
 
 // Firewall rules (IAP SSH, internal, health checks)
@@ -24,6 +29,7 @@ new Firewall("v2-firewall", {
   environment: stack,
   projectId: projectId,
   networkId: vpc.vpcId,
+  importExisting,
 });
 
 // Stack outputs for cross-stack references

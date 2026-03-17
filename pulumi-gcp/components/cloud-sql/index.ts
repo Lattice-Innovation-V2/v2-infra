@@ -14,6 +14,8 @@ export interface CloudSqlArgs {
   pointInTimeRecovery: boolean;
   deletionProtection: boolean;
   databaseFlags?: Array<{ name: string; value: string }>;
+  /** When true, import existing GCP resources instead of creating new ones. */
+  importExisting?: boolean;
 }
 
 export class CloudSql extends pulumi.ComponentResource {
@@ -40,9 +42,11 @@ export class CloudSql extends pulumi.ComponentResource {
       pointInTimeRecovery,
       deletionProtection,
       databaseFlags,
+      importExisting,
     } = args;
 
     const prefix = `v2-${environment}`;
+    const importId = (id: string) => importExisting ? id : undefined;
 
     // Cloud SQL PostgreSQL 15 instance
     const instance = new gcp.sql.DatabaseInstance(
@@ -92,6 +96,7 @@ export class CloudSql extends pulumi.ComponentResource {
       },
       {
         parent: this,
+        import: importId(`projects/${projectId}/instances/${prefix}-postgres`),
         customTimeouts: {
           create: "30m",
           update: "30m",

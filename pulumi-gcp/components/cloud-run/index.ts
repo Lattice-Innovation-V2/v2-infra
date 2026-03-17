@@ -33,6 +33,8 @@ export interface CloudRunArgs {
   livenessProbePath?: string;
   /** Labels applied to the Cloud Run service. */
   labels?: Record<string, string>;
+  /** When true, import existing GCP resources instead of creating new ones. */
+  importExisting?: boolean;
 }
 
 export class CloudRun extends pulumi.ComponentResource {
@@ -66,10 +68,12 @@ export class CloudRun extends pulumi.ComponentResource {
       startupProbePath,
       livenessProbePath,
       labels,
+      importExisting,
     } = args;
 
     const svcPrefix = rawPrefix ?? environment;
     const prefix = `${svcPrefix}-${serviceName}`;
+    const importId = (id: string) => importExisting ? id : undefined;
 
     // SA accountId must be ≤30 chars. Use shortened prefix if needed.
     const saAccountId = `${svcPrefix}-${serviceName}`.slice(0, 30);
@@ -197,6 +201,7 @@ export class CloudRun extends pulumi.ComponentResource {
       },
       {
         parent: this,
+        import: importId(`projects/${projectId}/locations/${region}/services/${svcPrefix}-${serviceName}`),
         // CI deploys update the container image — Pulumi should not revert it.
         ignoreChanges: ["template.containers[0].image"],
       },

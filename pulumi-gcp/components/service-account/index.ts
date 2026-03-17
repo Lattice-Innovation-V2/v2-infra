@@ -6,6 +6,8 @@ export interface ServiceAccountArgs {
   projectId: string;
   purpose: string;
   description?: string;
+  /** When true, import existing GCP resources instead of creating new ones. */
+  importExisting?: boolean;
 }
 
 export class ServiceAccount extends pulumi.ComponentResource {
@@ -19,17 +21,19 @@ export class ServiceAccount extends pulumi.ComponentResource {
   ) {
     super("v2:iam:ServiceAccount", name, {}, opts);
 
-    const { environment, projectId, purpose, description } = args;
+    const { environment, projectId, purpose, description, importExisting } = args;
+    const importId = (id: string) => importExisting ? id : undefined;
 
+    const saAccountId = `${environment}-${purpose}-sa`;
     const account = new gcp.serviceaccount.Account(
       `${environment}-${purpose}-sa`,
       {
         project: projectId,
-        accountId: `${environment}-${purpose}-sa`,
+        accountId: saAccountId,
         displayName:
           description || `${environment} ${purpose} service account`,
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/serviceAccounts/${saAccountId}@${projectId}.iam.gserviceaccount.com`) },
     );
 
     this.email = account.email;

@@ -10,6 +10,7 @@ export interface FirewallArgs {
   environment: string;
   projectId: string;
   networkId: pulumi.Input<string>;
+  importExisting?: boolean;
 }
 
 export class Firewall extends pulumi.ComponentResource {
@@ -20,8 +21,9 @@ export class Firewall extends pulumi.ComponentResource {
   ) {
     super("v2:networking:Firewall", name, {}, opts);
 
-    const { environment, projectId, networkId } = args;
+    const { environment, projectId, networkId, importExisting } = args;
     const prefix = `v2-${environment}`;
+    const importId = (id: string) => importExisting ? id : undefined;
 
     // IAP SSH access
     new gcp.compute.Firewall(
@@ -41,7 +43,7 @@ export class Firewall extends pulumi.ComponentResource {
         ],
         description: "Allow SSH via Identity-Aware Proxy",
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/global/firewalls/${prefix}-allow-iap-ssh`) },
     );
 
     // Internal traffic
@@ -61,7 +63,7 @@ export class Firewall extends pulumi.ComponentResource {
         ],
         description: "Allow internal VPC traffic",
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/global/firewalls/${prefix}-allow-internal`) },
     );
 
     // Health check traffic
@@ -82,7 +84,7 @@ export class Firewall extends pulumi.ComponentResource {
         ],
         description: "Allow GCP health check probes",
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/global/firewalls/${prefix}-allow-health-checks`) },
     );
 
     this.registerOutputs({});

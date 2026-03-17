@@ -7,6 +7,8 @@ export interface VpcArgs {
   region: string;
   subnetCidr: string;
   description?: string;
+  /** When true, import existing GCP resources instead of creating new ones. */
+  importExisting?: boolean;
 }
 
 export class Vpc extends pulumi.ComponentResource {
@@ -25,8 +27,9 @@ export class Vpc extends pulumi.ComponentResource {
   ) {
     super("v2:networking:Vpc", name, {}, opts);
 
-    const { environment, projectId, region, subnetCidr, description } = args;
+    const { environment, projectId, region, subnetCidr, description, importExisting } = args;
     const prefix = `v2-${environment}`;
+    const importId = (id: string) => importExisting ? id : undefined;
 
     // VPC Network
     const network = new gcp.compute.Network(
@@ -37,7 +40,7 @@ export class Vpc extends pulumi.ComponentResource {
         autoCreateSubnetworks: false,
         description: description || `V2 ${environment} VPC`,
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/global/networks/${prefix}-vpc`) },
     );
 
     // Subnet with Private Google Access
@@ -51,7 +54,7 @@ export class Vpc extends pulumi.ComponentResource {
         ipCidrRange: subnetCidr,
         privateIpGoogleAccess: true,
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/regions/${region}/subnetworks/${prefix}-subnet`) },
     );
 
     // Cloud Router (for Cloud NAT)
@@ -63,7 +66,7 @@ export class Vpc extends pulumi.ComponentResource {
         network: network.id,
         region: region,
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/regions/${region}/routers/${prefix}-router`) },
     );
 
     // Cloud NAT (egress for private instances)
@@ -81,7 +84,7 @@ export class Vpc extends pulumi.ComponentResource {
           filter: "ERRORS_ONLY",
         },
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/regions/${region}/routers/${prefix}-router/${prefix}-nat`) },
     );
 
     // Private IP range for VPC peering (Cloud SQL, Redis, etc.)
@@ -95,7 +98,7 @@ export class Vpc extends pulumi.ComponentResource {
         prefixLength: 16,
         network: network.id,
       },
-      { parent: this },
+      { parent: this, import: importId(`projects/${projectId}/global/addresses/${prefix}-private-ip-range`) },
     );
 
     // Private service connection (servicenetworking.googleapis.com)
@@ -107,7 +110,7 @@ export class Vpc extends pulumi.ComponentResource {
           service: "servicenetworking.googleapis.com",
           reservedPeeringRanges: [privateIpRange.name],
         },
-        { parent: this },
+        { parent: this, import: importId(`projects/${projectId}/global/networks/${prefix}-vpc:servicenetworking.googleapis.com`) },
       );
 
     this.vpcId = network.id;
