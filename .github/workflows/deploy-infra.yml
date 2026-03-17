@@ -1,0 +1,97 @@
+# Infrastructure deployment via Pulumi.
+#
+# The "slow path" — runs pulumi up to apply infrastructure changes
+# (env vars, secrets, VPC, scaling, IAM, service accounts).
+# Triggered manually or when Pulumi code changes.
+#
+# Container images are NOT managed here — CI handles images via deploy-image.yml.
+
+name: Deploy Infrastructure (Pulumi)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Pulumi stack to deploy (networking, data, apps)"
+        required: true
+        type: choice
+        options:
+          - apps
+          - data
+          - networking
+      environment:
+        description: "Environment stack suffix"
+        required: false
+        type: string
+        default: "dev"
+  push:
+    branches: [main]
+    paths:
+      - 'pulumi-gcp/**'
+
+env:
+  GCP_PROJECT_ID: lattice-innovation-v2
+  GCP_REGION: us-central1
+  WIF_PROVIDER: projects/497764988925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  SERVICE_ACCOUNT: github-actions-sa@lattice-innovation-v2.iam.gserviceaccount.com
+  PULUMI_BACKEND_URL: gs://v2-pulumi-state
+
+jobs:
+  deploy-infra:
+    name: Pulumi ${{ inputs.stack || 'apps' }} (${{ inputs.environment || 'dev' }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: pulumi-gcp/package-lock.json
+
+      - name: Install dependencies
+        run: cd pulumi-gcp && npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Setup Pulumi
+        uses: pulumi/actions@v6
+        with:
+          command: version
+
+      - name: Deploy infrastructure
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          STACK="${{ inputs.stack || 'apps' }}"
+          ENV="${{ inputs.environment || 'dev' }}"
+
+          pulumi login "${{ env.PULUMI_BACKEND_URL }}"
+
+          cd pulumi-gcp/stacks/${STACK}
+          pulumi stack select ${ENV}
+          pulumi up --yes --skip-preview
+
+      - name: Show outputs
+        if: always()
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          STACK="${{ inputs.stack || 'apps' }}"
+          ENV="${{ inputs.environment || 'dev' }}"
+
+          cd pulumi-gcp/stacks/${STACK}
+          pulumi stack output --json 2>/dev/null | head -50 || true
+
+          echo "## Pulumi: ${STACK}/${ENV}" >> $GITHUB_STEP_SUMMARY
+          echo "Stack deployed successfully." >> $GITHUB_STEP_SUMMARY

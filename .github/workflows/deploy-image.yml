@@ -1,0 +1,131 @@
+# Reusable workflow: build a container image and update a Cloud Run service.
+#
+# This is the "fast path" — it ONLY updates the container image and deploy
+# metadata on an existing Cloud Run service. All other configuration (env vars,
+# secrets, VPC, scaling, IAM) is managed by Pulumi and left untouched.
+#
+# Flow:
+#   push to main  → deploy-dev.yml   → build image + update service
+#   tag pa-*      → promote-all.yml  → promote dev image to preview
+#   tag pb-*      → promote-all.yml  → promote dev image to preview
+
+name: Deploy Image to Cloud Run
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Cloud Run service name suffix (e.g. integrator-service)"
+        required: true
+        type: string
+      service_prefix:
+        description: "Cloud Run service name prefix (e.g. linno-v2-dev)"
+        required: true
+        type: string
+      environment:
+        description: "Target environment: dev, preview-a, or preview-b"
+        required: false
+        type: string
+        default: "dev"
+      deploy_tag:
+        description: "Deploy tag (e.g. pa-2026-03-13). Empty for dev builds."
+        required: false
+        type: string
+        default: ""
+      dockerfile_path:
+        description: "Path to the Dockerfile"
+        required: false
+        type: string
+        default: "./src/main/docker/Dockerfile.jvm"
+      build_context:
+        description: "Docker build context directory"
+        required: false
+        type: string
+        default: "."
+      image_tag:
+        description: "Existing image tag to deploy (skip build). Used for promotions."
+        required: false
+        type: string
+        default: ""
+
+env:
+  GCP_PROJECT_ID: lattice-innovation-v2
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev/lattice-innovation-v2/v2-images
+  WIF_PROVIDER: projects/497764988925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  SERVICE_ACCOUNT: github-actions-sa@lattice-innovation-v2.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.service_prefix }}-${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        id: build
+        if: inputs.image_tag == ''
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build_context }}
+          file: ${{ inputs.dockerfile_path }}
+          push: true
+          tags: ${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image tag
+        id: image
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Image-only update: changes ONLY the container image and deploy metadata.
+      # All other config (env vars, secrets, VPC, scaling) is managed by Pulumi.
+      - name: Update Cloud Run service image
+        run: |
+          SERVICE="${{ inputs.service_prefix }}-${{ inputs.service_name }}"
+          DEPLOY_TS="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          DEPLOY_TAG="${{ inputs.deploy_tag }}"
+          DEPLOY_TAG="${DEPLOY_TAG:-none}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          gcloud run services update "$SERVICE" \
+            --image="${{ steps.image.outputs.tag }}" \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --update-env-vars="DEPLOY_SHA=${{ github.sha }},DEPLOY_TAG=${DEPLOY_TAG},DEPLOY_TIMESTAMP=${DEPLOY_TS}" \
+            --update-labels="git-sha=${SHORT_SHA},deploy-tag=${DEPLOY_TAG}"
+
+      - name: Verify deployment
+        run: |
+          SERVICE="${{ inputs.service_prefix }}-${{ inputs.service_name }}"
+          URL=$(gcloud run services describe "$SERVICE" \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --format="value(status.url)")
+          echo "Deployed: $URL"
+          echo "## Deploy: ${SERVICE}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ steps.image.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | ${URL} |" >> $GITHUB_STEP_SUMMARY
