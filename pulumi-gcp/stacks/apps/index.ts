@@ -72,6 +72,11 @@ for (const svc of MICROSERVICES) {
         }
       }
     }
+
+    // Widget API URL for demo app (includes path prefix, used client-side via __RUNTIME_ENV__)
+    if (svc.name === "demo" && serviceUrls["payment-runtime-service"]) {
+      envVars.push({ name: "WIDGET_API_URL", value: `${serviceUrls["payment-runtime-service"]}/v1/payment-runtime-service` });
+    }
   }
 
   // Database-specific env vars and secrets
