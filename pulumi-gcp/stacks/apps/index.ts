@@ -56,13 +56,19 @@ for (const svc of MICROSERVICES) {
         "payment-config-service": "PAYMENT_CONFIG_URL",
         "integrator-service": "INTEGRATOR_SERVICE_URL",
         "merchant-service": "MERCHANT_SERVICE_URL",
+        "brand-registry": "BRAND_REGISTRY_BASE_URL",
       },
+    };
+    // Some env vars need the service path prefix appended
+    const withPathPrefix: Record<string, string> = {
+      "BRAND_REGISTRY_BASE_URL": "/v1/brand-registry",
     };
     const deps = quarkusServiceUrlMap[svc.name];
     if (deps) {
       for (const [dep, envName] of Object.entries(deps)) {
         if (serviceUrls[dep]) {
-          envVars.push({ name: envName, value: serviceUrls[dep] });
+          const suffix = withPathPrefix[envName] ?? "";
+          envVars.push({ name: envName, value: `${serviceUrls[dep]}${suffix}` });
         }
       }
     }
