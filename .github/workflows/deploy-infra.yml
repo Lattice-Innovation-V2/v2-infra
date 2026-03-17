@@ -80,6 +80,8 @@ jobs:
 
           cd pulumi-gcp/stacks/${STACK}
           pulumi stack select ${ENV}
+          # Refresh first to sync CI-deployed images and env vars into state
+          pulumi refresh --yes
           pulumi up --yes --skip-preview
 
       - name: Show outputs
