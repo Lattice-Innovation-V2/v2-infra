@@ -119,9 +119,8 @@ for (const svc of MICROSERVICES) {
   }
 
   // Deploy metadata — placeholders overridden by gcloud at deploy time
-  envVars.push({ name: "DEPLOY_SHA", value: "unknown" });
-  envVars.push({ name: "DEPLOY_TAG", value: "unknown" });
-  envVars.push({ name: "DEPLOY_TIMESTAMP", value: "unknown" });
+  // DEPLOY_SHA, DEPLOY_TAG, DEPLOY_TIMESTAMP are managed by CI (deploy-image.yml).
+  // Not defined here to avoid Pulumi reverting CI-set values on pulumi up.
 
   const cloudRun = new CloudRun(`${stack}-${svc.name}`, {
     environment: stack,

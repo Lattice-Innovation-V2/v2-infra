@@ -202,8 +202,13 @@ export class CloudRun extends pulumi.ComponentResource {
       {
         parent: this,
         import: importId(`projects/${projectId}/locations/${region}/services/${svcPrefix}-${serviceName}`),
-        // CI deploys update the container image — Pulumi should not revert it.
-        ignoreChanges: ["template.containers[0].image"],
+        // CI deploys update the container image and deploy metadata env vars.
+        // Pulumi should not revert these. Run `pulumi refresh` before `pulumi up`
+        // to sync the current deployed state.
+        ignoreChanges: [
+          "template.containers[0].image",
+          "template.containers[0].envs",
+        ],
       },
     );
 
