@@ -104,6 +104,22 @@ for (const svc of MICROSERVICES) {
     if (svc.name === "demo" && serviceUrls["payment-runtime-service"]) {
       envVars.push({ name: "WIDGET_API_URL", value: pulumi.interpolate`${serviceUrls["payment-runtime-service"]}/v1/payment-runtime-service` });
     }
+
+    // Cross-frontend URLs for demo landing page (links to other portals and API docs)
+    if (svc.name === "demo") {
+      if (serviceUrls["merchant-console"]) {
+        envVars.push({ name: "MERCHANT_CONSOLE_URL", value: serviceUrls["merchant-console"] });
+      }
+      if (serviceUrls["integrator-portal"]) {
+        envVars.push({ name: "INTEGRATOR_PORTAL_URL", value: serviceUrls["integrator-portal"] });
+      }
+      if (serviceUrls["admin-console"]) {
+        envVars.push({ name: "ADMIN_CONSOLE_URL", value: serviceUrls["admin-console"] });
+      }
+      if (serviceUrls["integrator-service"]) {
+        envVars.push({ name: "INTEGRATOR_API_DOCS_URL", value: pulumi.interpolate`${serviceUrls["integrator-service"]}/v1/integrator-service/q/docs/` });
+      }
+    }
   }
 
   // Database-specific env vars and secrets
