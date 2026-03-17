@@ -115,6 +115,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
       "payment-config-service",
       "payment-runtime-service",
       "reporting-api",
+      "brand-registry",
     ],
   },
   {
