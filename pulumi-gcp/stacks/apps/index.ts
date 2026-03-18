@@ -149,7 +149,10 @@ for (const svc of MICROSERVICES) {
     containerPort: svc.containerPort,
     envVars: envVars,
     secrets: secretEnvVars.length > 0 ? secretEnvVars : undefined,
-    minInstances: envConfig.scaling.minInstances,
+    // Keep warm instances for widget critical path to avoid cold start cascade
+    minInstances: ['payment-runtime-service', 'payment-config-service', 'brand-registry'].includes(svc.name)
+      ? Math.max(1, envConfig.scaling.minInstances)
+      : envConfig.scaling.minInstances,
     maxInstances: envConfig.scaling.maxInstances,
     labels: {
       env: stack,
