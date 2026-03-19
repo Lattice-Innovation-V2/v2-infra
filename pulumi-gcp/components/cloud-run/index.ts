@@ -75,8 +75,8 @@ export class CloudRun extends pulumi.ComponentResource {
     const prefix = `${svcPrefix}-${serviceName}`;
     const importId = (id: string) => importExisting ? id : undefined;
 
-    // SA accountId must be ≤30 chars. Use shortened prefix if needed.
-    const saAccountId = `${svcPrefix}-${serviceName}`.slice(0, 30);
+    // SA accountId must be ≤30 chars, match ^[a-z][-a-z0-9]*[a-z0-9]$
+    const saAccountId = `${svcPrefix}-${serviceName}`.slice(0, 30).replace(/-+$/, '');
 
     // Per-service service account
     const serviceAccount = new gcp.serviceaccount.Account(
