@@ -78,19 +78,10 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Generate npm auth for Artifact Registry
+      - name: Get npm auth token for Artifact Registry
         id: npmauth
         if: inputs.image_tag == ''
-        run: |
-          # Generate .npmrc with GCP access token for @lattice packages
-          TOKEN=$(gcloud auth print-access-token)
-          cat > /tmp/.npmrc <<NPMRC
-          @lattice:registry=https://us-central1-npm.pkg.dev/latticepay-prod/npm-libs/
-          //us-central1-npm.pkg.dev/latticepay-prod/npm-libs/:_authToken=${TOKEN}
-          //us-central1-npm.pkg.dev/latticepay-prod/npm-libs/:always-auth=true
-          NPMRC
-          # Strip leading whitespace from heredoc
-          sed -i 's/^[[:space:]]*//' /tmp/.npmrc
+        run: echo "token=$(gcloud auth print-access-token)" >> $GITHUB_OUTPUT
 
       - name: Build and push image
         id: build
@@ -103,8 +94,7 @@ jobs:
           tags: ${{ env.ARTIFACT_REGISTRY }}/${{ inputs.service_name }}:${{ github.sha }}
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          secrets: |
-            npmrc=/tmp/.npmrc
+            NPM_TOKEN=${{ steps.npmauth.outputs.token }}
 
       - name: Resolve image tag
         id: image
