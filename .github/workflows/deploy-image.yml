@@ -84,11 +84,13 @@ jobs:
         run: |
           # Generate .npmrc with GCP access token for @lattice packages
           TOKEN=$(gcloud auth print-access-token)
-          cat > /tmp/.npmrc << EOF
+          cat > /tmp/.npmrc <<NPMRC
           @lattice:registry=https://us-central1-npm.pkg.dev/latticepay-prod/npm-libs/
           //us-central1-npm.pkg.dev/latticepay-prod/npm-libs/:_authToken=${TOKEN}
           //us-central1-npm.pkg.dev/latticepay-prod/npm-libs/:always-auth=true
-          EOF
+          NPMRC
+          # Strip leading whitespace from heredoc
+          sed -i 's/^[[:space:]]*//' /tmp/.npmrc
 
       - name: Build and push image
         id: build
