@@ -75,15 +75,12 @@ export const MICROSERVICES: MicroserviceConfig[] = [
   },
   {
     name: "brand-registry",
-    runtime: "quarkus",
-    containerPort: 8080,
-    database: "lattice_v2",
-    schema: "brand_registry",
-    hasDatabase: true,
+    runtime: "nextjs",
+    containerPort: 3000,
+    hasDatabase: false,
     hasRedis: false,
     isPublic: true,
-    pathPrefix: "/v1/brand-registry",
-    healthPath: "/v1/brand-registry/q/health",
+    healthPath: "/api/health",
   },
   // --- Frontends ---
   {
