@@ -62,7 +62,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     healthPath: "/v1/payment-runtime-service/health",
   },
   {
-    name: "reporting-api",
+    name: "reporting-service",
     runtime: "quarkus",
     containerPort: 8080,
     database: "lattice_v2",
@@ -85,6 +85,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     pathPrefix: "/v1/brand-registry",
     healthPath: "/v1/brand-registry/q/health",
   },
+  // --- Frontends ---
   {
     name: "integrator-portal",
     runtime: "nextjs",
@@ -98,24 +99,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
       "merchant-service",
       "payment-config-service",
       "payment-runtime-service",
-      "reporting-api",
-    ],
-  },
-  {
-    name: "merchant-console",
-    runtime: "nextjs",
-    containerPort: 8080,
-    hasDatabase: false,
-    hasRedis: false,
-    isPublic: true,
-    healthPath: "/api/health",
-    backendDependencies: [
-      "integrator-service",
-      "merchant-service",
-      "payment-config-service",
-      "payment-runtime-service",
-      "reporting-api",
-      "brand-registry",
+      "reporting-service",
     ],
   },
   {
@@ -131,7 +115,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
       "merchant-service",
       "payment-config-service",
       "brand-registry",
-      "reporting-api",
+      "reporting-service",
       "payment-runtime-service",
     ],
   },
@@ -145,4 +129,6 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     healthPath: "/api/health",
     backendDependencies: ["payment-runtime-service"],
   },
+  // merchant-console-widget, checkout-widget, and connector-library
+  // will be added here once ported from latticeorg.
 ];

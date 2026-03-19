@@ -87,7 +87,7 @@ for (const svc of MICROSERVICES) {
       "merchant-service": "MERCHANT_API_URL",
       "payment-config-service": "PAYMENT_CONFIG_API_URL",
       "payment-runtime-service": "PAYMENT_RUNTIME_API_URL",
-      "reporting-api": "REPORTING_API_URL",
+      "reporting-service": "REPORTING_API_URL",
       "brand-registry": "BRAND_REGISTRY_API_URL",
     };
 
@@ -107,8 +107,9 @@ for (const svc of MICROSERVICES) {
 
     // Cross-frontend URLs for demo landing page (links to other portals and API docs)
     if (svc.name === "demo") {
-      if (serviceUrls["merchant-console"]) {
-        envVars.push({ name: "MERCHANT_CONSOLE_URL", value: serviceUrls["merchant-console"] });
+      // merchant-console-widget will replace this once ported
+      if (serviceUrls["merchant-console-widget"]) {
+        envVars.push({ name: "MERCHANT_CONSOLE_URL", value: serviceUrls["merchant-console-widget"] });
       }
       if (serviceUrls["integrator-portal"]) {
         envVars.push({ name: "INTEGRATOR_PORTAL_URL", value: serviceUrls["integrator-portal"] });
