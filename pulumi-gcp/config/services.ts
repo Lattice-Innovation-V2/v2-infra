@@ -129,6 +129,32 @@ export const MICROSERVICES: MicroserviceConfig[] = [
     healthPath: "/api/health",
     backendDependencies: ["payment-runtime-service"],
   },
-  // merchant-console-widget, checkout-widget, and connector-library
-  // will be added here once ported from latticeorg.
+  {
+    name: "merchant-console-widget",
+    runtime: "nextjs",
+    containerPort: 8080,
+    hasDatabase: false,
+    hasRedis: false,
+    isPublic: true,
+    healthPath: "/api/health",
+    backendDependencies: [
+      "merchant-service",
+      "payment-config-service",
+      "payment-runtime-service",
+    ],
+  },
+  {
+    name: "checkout-widget",
+    runtime: "nextjs",
+    containerPort: 8080,
+    hasDatabase: false,
+    hasRedis: false,
+    isPublic: true,
+    healthPath: "/api/health",
+    backendDependencies: [
+      "payment-runtime-service",
+      "payment-config-service",
+    ],
+  },
+  // connector-library is an SDK (npm package), not a deployed service.
 ];
