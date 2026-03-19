@@ -29,7 +29,7 @@ Backends must start before frontends since frontends proxy API calls.
 | 3 | payment-config-service | 8082 | `cd v2-payment-config-service && ./mvnw quarkus:dev` | No dependencies on other services |
 | 4 | payment-runtime-service | 8083 | `cd v2-payment-runtime-service && ./mvnw quarkus:dev` | Calls config-service (8082) for resolved configs |
 | 5 | brand-registry | 8085 | `cd v2-brand-registry && ./mvnw quarkus:dev` | No dependencies on other services |
-| 6 | reporting-api | 8084 | `cd v2-reporting-api && ./mvnw quarkus:dev` | Reads from BigQuery (stubs in dev) |
+| 6 | reporting-api | 8084 | `cd v2-reporting-service && ./mvnw quarkus:dev` | Reads from BigQuery (stubs in dev) |
 
 Services 1-3 and 5-6 are independent and can start in parallel. Service 4 (payment-runtime) benefits from config-service being up first but will retry on failure.
 

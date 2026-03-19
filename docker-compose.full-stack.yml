@@ -150,11 +150,11 @@ services:
 
   reporting-api:
     build:
-      context: ../v2-reporting-api
+      context: ../v2-reporting-service
       dockerfile: src/main/docker/Dockerfile.jvm
       args:
         QUARKUS_PROFILE: dev
-    container_name: v2-reporting-api
+    container_name: v2-reporting-service
     ports:
       - "10204:8080"
     environment:

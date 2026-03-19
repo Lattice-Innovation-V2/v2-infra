@@ -17,7 +17,7 @@ Lattice Pay V2 is a **microservices payment platform** being migrated from V1 (`
 | `v2-merchant-service` | Quarkus backend | 10201 | Merchant management |
 | `v2-payment-config-service` | Quarkus backend | 10202 | PSP catalog, payment configs |
 | `v2-payment-runtime-service` | Quarkus backend | 10203 | Transaction processing + widget serving |
-| `v2-reporting-api` | Quarkus backend | 10204 | Reporting (PostgreSQL, future BigQuery) |
+| `v2-reporting-service` | Quarkus backend | 10204 | Reporting (PostgreSQL, future BigQuery) |
 | `v2-brand-registry` | Quarkus backend | 10205 | Brand management |
 | `v2-payment-mcp` | Quarkus backend | 10206 | Payment MCP server (AI/LLM) |
 | `v2-agentic-api` | Quarkus backend | 10207 | Agentic financial API |
@@ -110,7 +110,7 @@ All 10 services deployed to Cloud Run under the `linno-v2-*` prefix:
 | merchant-service | `https://linno-v2-merchant-service-lvwlxumqfa-uc.a.run.app` | UP |
 | payment-config-service | `https://linno-v2-payment-config-service-lvwlxumqfa-uc.a.run.app` | UP |
 | payment-runtime-service | `https://linno-v2-payment-runtime-service-lvwlxumqfa-uc.a.run.app` | UP |
-| reporting-api | `https://linno-v2-reporting-api-lvwlxumqfa-uc.a.run.app` | UP |
+| reporting-api | `https://linno-v2-reporting-service-lvwlxumqfa-uc.a.run.app` | UP |
 | brand-registry | `https://linno-v2-brand-registry-lvwlxumqfa-uc.a.run.app` | UP |
 | integrator-portal | `https://linno-v2-integrator-portal-lvwlxumqfa-uc.a.run.app` | UP |
 | merchant-console | `https://linno-v2-merchant-console-lvwlxumqfa-uc.a.run.app` | UP |
@@ -134,7 +134,7 @@ INTEGRATOR_API_URL=https://linno-v2-integrator-service-...
 MERCHANT_API_URL=https://linno-v2-merchant-service-...
 PAYMENT_CONFIG_API_URL=https://linno-v2-payment-config-service-...
 PAYMENT_RUNTIME_API_URL=https://linno-v2-payment-runtime-service-...
-REPORTING_API_URL=https://linno-v2-reporting-api-...
+REPORTING_API_URL=https://linno-v2-reporting-service-...
 ```
 
 ---
