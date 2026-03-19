@@ -76,7 +76,7 @@ export const MICROSERVICES: MicroserviceConfig[] = [
   {
     name: "brand-registry",
     runtime: "nextjs",
-    containerPort: 3000,
+    containerPort: 8080,
     hasDatabase: false,
     hasRedis: false,
     isPublic: true,
